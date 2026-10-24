@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>StreamMatch AI</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    :root {
+      --bg-dark: #1c1c1c;
+      --card-bg: #353535;
+      --text-main: #ffffff;
+      --accent-green: #00a94f;
+      --accent-light: #aad04e;
+    }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    h1, h2, h3 { color: var(--text-main); margin-top: 0; }
+    .container { max-width: 600px; margin: 0 auto; }
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    label { display: block; margin-bottom: 5px; font-size: 0.9em; color: #ccc; }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      border: 1px solid #555;
+      background-color: #222;
+      color: white;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: var(--accent-green);
+      color: white;
+      border: none;
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+      transition: background-color 0.2s;
+    }
+    button:hover { background-color: var(--accent-light); color: var(--bg-dark); }
+    .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+    .checkbox-item { background: #222; padding: 10px 15px; border-radius: 20px; border: 1px solid #555; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    #results { margin-top: 20px; }
+    .result-item { background-color: #222; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid var(--accent-light); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>StreamMatch AI</h1>
+    
+    <div class="card">
+      <h2>1. API Settings</h2>
+      <label>Gemini API Key</label>
+      <input type="password" id="geminiKey" placeholder="Paste Gemini Key here...">
+      <label>Watchmode API Key</label>
+      <input type="password" id="watchmodeKey" placeholder="Paste Watchmode Key here...">
+      <button onclick="saveSettings()">Save Keys to Device</button>
+      <p id="saveMsg" style="color: var(--accent-light); display: none; font-size: 0.9em; margin-top: 10px;">Keys saved securely!</p>
+    </div>
+
+    <div class="card">
+      <h2>2. Your Taste Profile</h2>
+      <label>My Services</label>
+      <div class="checkbox-group">
+        <label class="checkbox-item"><input type="checkbox" id="sub_netflix"> Netflix</label>
+        <label class="checkbox-item"><input type="checkbox" id="sub_prime"> Prime Video</label>
+        <label class="checkbox-item"><input type="checkbox" id="sub_hulu"> Hulu</label>
+        <label class="checkbox-item"><input type="checkbox" id="sub_max"> Max</label>
+      </div>
+
+      <label>Recent Movies/Shows I Liked</label>
+      <input type="text" id="likedTitles" placeholder="e.g., Top Gun: Maverick, Reacher">
+      
+      <label>Vibe & Preferences</label>
+      <div class="checkbox-group">
+        <label class="checkbox-item"><input type="checkbox" id="pref_hero" checked> Traditional Hero Arcs</label>
+        <label class="checkbox-item"><input type="checkbox" id="pref_humor" checked> Classic Humor</label>
+        <label class="checkbox-item"><input type="checkbox" id="pref_action"> Grounded Action</label>
+      </div>
+      
+      <button onclick="getRecommendations()" style="margin-top: 10px;">Find Something to Watch</button>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    // Load saved settings when the app opens
+    window.onload = function() {
+      if(localStorage.getItem('geminiKey')) document.getElementById('geminiKey').value = localStorage.getItem('geminiKey');
+      if(localStorage.getItem('watchmodeKey')) document.getElementById('watchmodeKey').value = localStorage.getItem('watchmodeKey');
+      if(localStorage.getItem('likedTitles')) document.getElementById('likedTitles').value = localStorage.getItem('likedTitles');
+    }
+
+    function saveSettings() {
+      localStorage.setItem('geminiKey', document.getElementById('geminiKey').value);
+      localStorage.setItem('watchmodeKey', document.getElementById('watchmodeKey').value);
+      localStorage.setItem('likedTitles', document.getElementById('likedTitles').value);
+      
+      const msg = document.getElementById('saveMsg');
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 3000);
+    }
+
+    function getRecommendations() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<p>Analyzing your taste profile...</p>';
+      
+      // Offline Demo Mode: Shows how the UI works before we wire up the live API logic
+      setTimeout(() => {
+        resultsDiv.innerHTML = `
+          <div class="card">
+            <h2>Recommended for You</h2>
+            <div class="result-item">
+              <h3><strong>The Night Agent</strong> (Netflix)</h3>
+              <p>Match: 95% - Hits your preference for traditional hero arcs and grounded action without cynicism.</p>
+            </div>
+            <div class="result-item">
+              <h3><strong>Jack Ryan</strong> (Prime Video)</h3>
+              <p>Match: 92% - Classic pacing with high stakes, similar to your liked titles.</p>
+            </div>
+            <p style="font-size: 0.8em; color: #aaa; margin-top:15px;">(This is demo data to test the layout. Next, we will connect the live API!)</p>
+          </div>
+        `;
+      }, 1500);
+    }
+  </script>
+</body>
+</html>
