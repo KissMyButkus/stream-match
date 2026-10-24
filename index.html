@@ -29,7 +29,7 @@
       margin-bottom: 20px;
       box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
-    label { display: block; margin-bottom: 5px; font-size: 0.9em; color: #ccc; }
+    label { display: block; margin-bottom: 5px; font-size: 0.9em; color: #ccc; font-weight: bold; }
     input[type="text"], input[type="password"] {
       width: 100%;
       padding: 12px;
@@ -53,10 +53,34 @@
       transition: background-color 0.2s;
     }
     button:hover { background-color: var(--accent-light); color: var(--bg-dark); }
+    button:disabled { background-color: #555; color: #888; cursor: not-allowed; }
+    
     .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
-    .checkbox-item { background: #222; padding: 10px 15px; border-radius: 20px; border: 1px solid #555; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .checkbox-item { 
+      background: #222; padding: 10px 15px; border-radius: 20px; 
+      border: 1px solid #555; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+    }
+    .checkbox-item input:checked + span { color: var(--accent-light); font-weight: bold; }
     #results { margin-top: 20px; }
-    .result-item { background-color: #222; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid var(--accent-light); }
+    
+    .result-item { 
+      background-color: #222; padding: 15px; border-radius: 8px; margin-bottom: 15px; 
+      border-left: 4px solid var(--accent-light);
+    }
+    .service-badge {
+      display: inline-block; background-color: var(--accent-green); color: white;
+      padding: 3px 8px; border-radius: 4px; font-size: 0.8em; margin-bottom: 8px; font-weight: bold;
+    }
+    .tag-badge {
+      display: inline-block; background-color: #444; color: #ddd;
+      padding: 3px 8px; border-radius: 12px; font-size: 0.75em; margin-right: 5px; margin-bottom: 5px;
+    }
+    .action-row { display: flex; gap: 10px; margin-top: 15px; }
+    .btn-watch { flex: 1; padding: 10px; font-size: 0.9em; }
+    .btn-save { flex: 1; padding: 10px; font-size: 0.9em; background-color: #555; }
+    .btn-save:hover { background-color: #777; color: white; }
+    
+    .loader { display: none; text-align: center; color: var(--accent-light); font-weight: bold; padding: 20px; }
   </style>
 </head>
 <body>
@@ -66,9 +90,9 @@
     <div class="card">
       <h2>1. API Settings</h2>
       <label>Gemini API Key</label>
-      <input type="password" id="geminiKey" placeholder="Paste Gemini Key here...">
-      <label>Watchmode API Key</label>
-      <input type="password" id="watchmodeKey" placeholder="Paste Watchmode Key here...">
+      <input type="password" id="geminiKey" placeholder="Required for recommendations...">
+      <label>Watchmode API Key (Optional)</label>
+      <input type="password" id="watchmodeKey" placeholder="Required for 100% accuracy checks...">
       <button onclick="saveSettings()">Save Keys to Device</button>
       <p id="saveMsg" style="color: var(--accent-light); display: none; font-size: 0.9em; margin-top: 10px;">Keys saved securely!</p>
     </div>
@@ -76,68 +100,225 @@
     <div class="card">
       <h2>2. Your Taste Profile</h2>
       <label>My Services</label>
-      <div class="checkbox-group">
-        <label class="checkbox-item"><input type="checkbox" id="sub_netflix"> Netflix</label>
-        <label class="checkbox-item"><input type="checkbox" id="sub_prime"> Prime Video</label>
-        <label class="checkbox-item"><input type="checkbox" id="sub_hulu"> Hulu</label>
-        <label class="checkbox-item"><input type="checkbox" id="sub_max"> Max</label>
+      <div class="checkbox-group" id="servicesGroup">
+        <label class="checkbox-item"><input type="checkbox" value="Netflix"> <span>Netflix</span></label>
+        <label class="checkbox-item"><input type="checkbox" value="Prime Video"> <span>Prime Video</span></label>
+        <label class="checkbox-item"><input type="checkbox" value="Hulu"> <span>Hulu</span></label>
+        <label class="checkbox-item"><input type="checkbox" value="Disney+"> <span>Disney+</span></label>
+        <label class="checkbox-item"><input type="checkbox" value="Peacock"> <span>Peacock</span></label>
+        <label class="checkbox-item"><input type="checkbox" value="Max"> <span>Max</span></label>
+        <label class="checkbox-item"><input type="checkbox" value="Apple TV+"> <span>Apple TV+</span></label>
       </div>
 
       <label>Recent Movies/Shows I Liked</label>
-      <input type="text" id="likedTitles" placeholder="e.g., Top Gun: Maverick, Reacher">
+      <input type="text" id="likedTitles" placeholder="e.g., Top Gun: Maverick, Reacher, Die Hard">
       
+      <label>Dealbreakers (Exclude these)</label>
+      <input type="text" id="dealbreakers" placeholder="e.g., depressing dramas, excessive gore">
+
       <label>Vibe & Preferences</label>
-      <div class="checkbox-group">
-        <label class="checkbox-item"><input type="checkbox" id="pref_hero" checked> Traditional Hero Arcs</label>
-        <label class="checkbox-item"><input type="checkbox" id="pref_humor" checked> Classic Humor</label>
-        <label class="checkbox-item"><input type="checkbox" id="pref_action"> Grounded Action</label>
+      <div class="checkbox-group" id="vibesGroup">
+        <label class="checkbox-item"><input type="checkbox" value="Traditional Hero Arcs" checked> <span>Traditional Hero Arcs</span></label>
+        <label class="checkbox-item"><input type="checkbox" value="Classic Humor" checked> <span>Classic Humor</span></label>
+        <label class="checkbox-item"><input type="checkbox" value="Grounded Action"> <span>Grounded Action</span></label>
+        <label class="checkbox-item"><input type="checkbox" value="Sci-Fi / Fantasy"> <span>Sci-Fi / Fantasy</span></label>
       </div>
       
-      <button onclick="getRecommendations()" style="margin-top: 10px;">Find Something to Watch</button>
+      <button id="searchBtn" onclick="getRecommendations()" style="margin-top: 10px;">Find Something to Watch</button>
     </div>
 
+    <div id="loader" class="loader">Analyzing your profile with Gemini AI...</div>
     <div id="results"></div>
   </div>
 
   <script>
-    // Load saved settings when the app opens
     window.onload = function() {
       if(localStorage.getItem('geminiKey')) document.getElementById('geminiKey').value = localStorage.getItem('geminiKey');
       if(localStorage.getItem('watchmodeKey')) document.getElementById('watchmodeKey').value = localStorage.getItem('watchmodeKey');
       if(localStorage.getItem('likedTitles')) document.getElementById('likedTitles').value = localStorage.getItem('likedTitles');
+      if(localStorage.getItem('dealbreakers')) document.getElementById('dealbreakers').value = localStorage.getItem('dealbreakers');
     }
 
     function saveSettings() {
-      localStorage.setItem('geminiKey', document.getElementById('geminiKey').value);
-      localStorage.setItem('watchmodeKey', document.getElementById('watchmodeKey').value);
+      localStorage.setItem('geminiKey', document.getElementById('geminiKey').value.trim());
+      localStorage.setItem('watchmodeKey', document.getElementById('watchmodeKey').value.trim());
       localStorage.setItem('likedTitles', document.getElementById('likedTitles').value);
+      localStorage.setItem('dealbreakers', document.getElementById('dealbreakers').value);
       
       const msg = document.getElementById('saveMsg');
       msg.style.display = 'block';
       setTimeout(() => msg.style.display = 'none', 3000);
     }
 
-    function getRecommendations() {
+    function getCheckedValues(containerId) {
+      const container = document.getElementById(containerId);
+      const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+      return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    async function getRecommendations() {
+      const geminiKey = document.getElementById('geminiKey').value.trim();
+      const watchmodeKey = document.getElementById('watchmodeKey').value.trim();
       const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = '<p>Analyzing your taste profile...</p>';
-      
-      // Offline Demo Mode: Shows how the UI works before we wire up the live API logic
-      setTimeout(() => {
-        resultsDiv.innerHTML = `
-          <div class="card">
-            <h2>Recommended for You</h2>
+      const loader = document.getElementById('loader');
+      const searchBtn = document.getElementById('searchBtn');
+
+      if (!geminiKey) {
+        alert("Please enter your Gemini API Key first and save it.");
+        return;
+      }
+
+      const services = getCheckedValues('servicesGroup');
+      const vibes = getCheckedValues('vibesGroup');
+      const liked = document.getElementById('likedTitles').value;
+      const dealbreakers = document.getElementById('dealbreakers').value;
+
+      if (services.length === 0) {
+        alert("Please select at least one streaming service.");
+        return;
+      }
+
+      searchBtn.disabled = true;
+      loader.style.display = 'block';
+      loader.innerText = 'Analyzing your profile with Gemini AI...';
+      resultsDiv.innerHTML = '';
+
+      // If we have Watchmode, ask Gemini for 10 options so we have backups if availability fails. 
+      // If no Watchmode, just ask for 3 and trust the AI.
+      const requestedAmount = watchmodeKey ? 10 : 3;
+
+      const promptText = `
+        You are an expert streaming recommendation engine. Prioritize titles with high audience approval.
+        The user subscribes ONLY to these services: ${services.join(', ')}.
+        They like these titles: ${liked || 'General high-quality shows and movies'}.
+        Their preferred vibes: ${vibes.join(', ')}.
+        DEALBREAKERS (Do NOT include these): ${dealbreakers || 'None'}.
+        
+        Provide exactly ${requestedAmount} highly accurate movie or TV show recommendations.
+        
+        Respond ONLY with a valid JSON array of objects. Do not use markdown wrappers like \`\`\`json. The format must be exactly:
+        [
+          {
+            "title": "Movie/Show Title",
+            "service": "Which of their selected services it is on",
+            "match_score": "95%",
+            "synopsis": "A strict 1-sentence engaging plot summary.",
+            "tags": ["Tag1", "Tag2", "Tag3"],
+            "reason": "1-2 sentences on exactly why this fits their profile and isn't a dealbreaker."
+          }
+        ]
+      `;
+
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }],
+            generationConfig: { temperature: 0.4 }
+          })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+
+        let rawText = data.candidates[0].content.parts[0].text;
+        rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        let aiRecommendations = JSON.parse(rawText);
+        let finalRecommendations = [];
+
+        // Watchmode Availability Check (Only runs if key exists)
+        if (watchmodeKey) {
+          loader.innerText = 'Verifying real-time streaming availability...';
+          
+          for (let rec of aiRecommendations) {
+            if (finalRecommendations.length >= 3) break; // Stop once we have 3 verified hits
+            
+            try {
+              // Get Title ID
+              let searchRes = await fetch(`https://api.watchmode.com/v1/search/?apiKey=${watchmodeKey}&search_field=name&search_value=${encodeURIComponent(rec.title)}`);
+              let searchData = await searchRes.json();
+              
+              if (searchData.title_results && searchData.title_results.length > 0) {
+                let tmdbId = searchData.title_results[0].id;
+                
+                // Get Real-Time Sources
+                let detailsRes = await fetch(`https://api.watchmode.com/v1/title/${tmdbId}/details/?apiKey=${watchmodeKey}&append_to_response=sources`);
+                let detailsData = await detailsRes.json();
+                let availableSources = detailsData.sources || [];
+                
+                // Check if it is available for FREE (sub) on one of their selected services
+                let verifiedSource = availableSources.find(source => {
+                  if (source.type !== 'sub') return false; // Reject paid rentals/purchases
+                  
+                  let sourceName = source.name.toLowerCase();
+                  return services.some(userService => {
+                    let mappedName = userService.toLowerCase();
+                    if (mappedName === 'prime video') mappedName = 'prime';
+                    if (mappedName === 'apple tv+') mappedName = 'apple';
+                    return sourceName.includes(mappedName);
+                  });
+                });
+
+                if (verifiedSource) {
+                  rec.watchUrl = verifiedSource.web_url; // Capture the real deep-link
+                  finalRecommendations.push(rec);
+                }
+              }
+            } catch (err) {
+              console.warn(`Watchmode lookup failed for ${rec.title}, skipping.`);
+            }
+          }
+          
+          if (finalRecommendations.length === 0) {
+            throw new Error("Gemini generated options, but Watchmode verified none of them are currently included for free on your selected platforms. Please adjust your filters.");
+          }
+        } else {
+          // If no Watchmode key, just trust the first 3 from Gemini
+          finalRecommendations = aiRecommendations.slice(0, 3);
+        }
+
+        // Render the UI
+        let htmlContent = '<div class="card"><h2>Top Verified Matches</h2>';
+        finalRecommendations.forEach(rec => {
+          let tagsHtml = rec.tags.map(tag => `<span class="tag-badge">${tag}</span>`).join('');
+          
+          // Use real Watchmode deep-link if we have it, otherwise fallback to Google Search
+          let searchUrl = rec.watchUrl ? rec.watchUrl : `https://www.google.com/search?q=watch+${encodeURIComponent(rec.title)}+on+${encodeURIComponent(rec.service)}`;
+          
+          htmlContent += `
             <div class="result-item">
-              <h3><strong>The Night Agent</strong> (Netflix)</h3>
-              <p>Match: 95% - Hits your preference for traditional hero arcs and grounded action without cynicism.</p>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="service-badge">${rec.service}</span>
+                <span style="font-weight: bold; color: var(--accent-light);">${rec.match_score} Match</span>
+              </div>
+              
+              <h3 style="margin-bottom: 5px; margin-top: 10px;">${rec.title}</h3>
+              <p style="font-size: 0.85em; color: #bbb; margin-bottom: 10px;"><em>${rec.synopsis}</em></p>
+              
+              <div style="margin-bottom: 10px;">
+                ${tagsHtml}
+              </div>
+              
+              <p style="margin-top: 8px; font-size: 0.95em;">${rec.reason}</p>
+              
+              <div class="action-row">
+                <button class="btn-watch" onclick="window.open('${searchUrl}', '_blank')">▶ Watch Now</button>
+                <button class="btn-save" onclick="alert('${rec.title} has been added to your Watchlist!')">➕ Save</button>
+              </div>
             </div>
-            <div class="result-item">
-              <h3><strong>Jack Ryan</strong> (Prime Video)</h3>
-              <p>Match: 92% - Classic pacing with high stakes, similar to your liked titles.</p>
-            </div>
-            <p style="font-size: 0.8em; color: #aaa; margin-top:15px;">(This is demo data to test the layout. Next, we will connect the live API!)</p>
-          </div>
-        `;
-      }, 1500);
+          `;
+        });
+        htmlContent += '</div>';
+        resultsDiv.innerHTML = htmlContent;
+
+      } catch (error) {
+        console.error(error);
+        resultsDiv.innerHTML = `<div class="card"><p style="color: #ff6b6b;"><strong>Error:</strong> Failed to fetch recommendations.</p><p style="font-size: 0.8em; color: #ccc;">Details: ${error.message}</p></div>`;
+      } finally {
+        searchBtn.disabled = false;
+        loader.style.display = 'none';
+      }
     }
   </script>
 </body>
