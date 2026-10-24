@@ -923,8 +923,13 @@
       document.getElementById('watchlistCount').innerText = state.watchlist.length;
     }
 
-    function toggleWatchlistItem(recString) {
-      const rec = JSON.parse(decodeURIComponent(recString));
+// Global lookup table so buttons never break on apostrophes
+    window.cardRegistry = {};
+
+    function toggleWatchlistById(cardId) {
+      const rec = window.cardRegistry[cardId];
+      if (!rec) return;
+
       const exists = state.watchlist.some(item => item.title.toLowerCase() === rec.title.toLowerCase());
       if (exists) {
         state.watchlist = state.watchlist.filter(item => item.title.toLowerCase() !== rec.title.toLowerCase());
@@ -933,20 +938,25 @@
       }
       saveState();
       renderWatchlist();
-      // Update button text if in discover view
-      const btns = document.querySelectorAll(`[data-title="${rec.title.replace(/"/g, '&quot;')}"]`);
-      btns.forEach(b => {
-        b.classList.toggle('saved', !exists);
-        b.innerHTML = !exists ? '✓ In Watchlist' : '＋ Watchlist';
-      });
+
+      // Update the button visual state immediately
+      const cardEl = document.getElementById(cardId);
+      if (cardEl) {
+        const btn = cardEl.querySelector('.btn-watchlist');
+        if (btn) {
+          btn.classList.toggle('saved', !exists);
+          btn.innerHTML = !exists ? '✓ In Watchlist' : '＋ Watchlist';
+        }
+      }
     }
 
-    function dismissRecommendation(title, cardElementId) {
-      if (!state.seenHistory.some(t => t.toLowerCase() === title.toLowerCase())) {
-        state.seenHistory.push(title);
+    function dismissRecommendation(cardId) {
+      const rec = window.cardRegistry[cardId];
+      if (rec && !state.seenHistory.some(t => t.toLowerCase() === rec.title.toLowerCase())) {
+        state.seenHistory.push(rec.title);
         saveState();
       }
-      const el = document.getElementById(cardElementId);
+      const el = document.getElementById(cardId);
       if (el) el.style.display = 'none';
     }
 
@@ -969,12 +979,14 @@
     }
 
     function buildCardHtml(rec, cardId, isWatchlistView = false) {
+      // Store the object safely in memory by ID instead of inside HTML strings
+      window.cardRegistry[cardId] = rec;
+
       const inWatchlist = state.watchlist.some(item => item.title.toLowerCase() === rec.title.toLowerCase());
-      const encodedRec = encodeURIComponent(JSON.stringify(rec));
       const searchUrl = rec.watchUrl || `https://www.google.com/search?q=watch+${encodeURIComponent(rec.title)}+on+${encodeURIComponent(rec.service)}`;
       const tagsHtml = (rec.tags || []).map(t => `<span class="meta-tag">${t}</span>`).join('');
       const posterHtml = rec.posterUrl
-        ? `<img src="${rec.posterUrl}" class="rec-poster" alt="${rec.title}">`
+        ? `<img src="${rec.posterUrl}" class="rec-poster" alt="Poster">`
         : `<div class="rec-poster"><span style="font-size:1.4rem; color:var(--accent-light);">🎬</span><span style="margin-top:6px;">${rec.type || 'Title'}</span></div>`;
 
       return `
@@ -997,10 +1009,10 @@
 
             <div class="rec-actions">
               <button class="btn-action btn-watch" onclick="window.open('${searchUrl}', '_blank')">▶ Watch Now</button>
-              <button class="btn-action btn-watchlist ${inWatchlist ? 'saved' : ''}" data-title="${rec.title.replace(/"/g, '&quot;')}" onclick="toggleWatchlistItem('${encodedRec}')">
+              <button class="btn-action btn-watchlist ${inWatchlist ? 'saved' : ''}" onclick="toggleWatchlistById('${cardId}')">
                 ${inWatchlist ? '✓ In Watchlist' : '＋ Watchlist'}
               </button>
-              ${!isWatchlistView ? `<button class="btn-action btn-dismiss" title="Hide & Never Recommend Again" onclick="dismissRecommendation('${rec.title.replace(/'/g, "\\'")}', '${cardId}')">✕</button>` : ''}
+              ${!isWatchlistView ? `<button class="btn-action btn-dismiss" title="Hide & Never Recommend Again" onclick="dismissRecommendation('${cardId}')">✕</button>` : ''}
             </div>
           </div>
         </div>
